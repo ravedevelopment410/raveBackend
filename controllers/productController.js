@@ -330,6 +330,9 @@ const defaultProducts = [
   }
 ];
 
+// Flag to check if initial DB seeding has been performed
+let isDbSeeded = false;
+
 // @desc    Get all products
 // @route   GET /api/products
 // @access  Public
@@ -337,14 +340,18 @@ export const getProducts = async (req, res) => {
   try {
     let products = await Product.find({}).sort({ createdAt: -1 });
 
-    // Seed database if empty
-    if (products.length === 0) {
-      const seededProducts = defaultProducts.map((p) => ({
-        ...p,
-        _id: p.id // Use custom string _id to keep URL routes p1, p2 working
-      }));
-      await Product.insertMany(seededProducts);
-      products = await Product.find({}).sort({ createdAt: -1 });
+    // Seed database ONLY ONCE if database has never been initialized
+    if (!isDbSeeded) {
+      const count = await Product.countDocuments();
+      if (count === 0) {
+        const seededProducts = defaultProducts.map((p) => ({
+          ...p,
+          _id: p.id
+        }));
+        await Product.insertMany(seededProducts);
+        products = await Product.find({}).sort({ createdAt: -1 });
+      }
+      isDbSeeded = true;
     }
 
     res.status(200).json(products);
@@ -413,7 +420,8 @@ export const createProduct = async (req, res) => {
 // @access  Public
 export const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const targetId = req.params.id;
+    const product = await Product.findOne({ $or: [{ _id: targetId }, { id: targetId }] });
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -426,7 +434,7 @@ export const deleteProduct = async (req, res) => {
       }
     }
 
-    await Product.deleteOne({ _id: req.params.id });
+    await Product.deleteOne({ _id: product._id });
     res.status(200).json({ message: 'Product removed successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
