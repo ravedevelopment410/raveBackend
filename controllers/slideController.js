@@ -109,7 +109,8 @@ export const getSlides = async (req, res) => {
     
     res.status(200).json(slides);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("MongoDB query error in getSlides, returning fallback defaultSlides:", error.message);
+    res.status(200).json(defaultSlides);
   }
 };
 
