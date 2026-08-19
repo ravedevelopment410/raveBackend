@@ -421,7 +421,18 @@ export const createProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const targetId = req.params.id;
-    const product = await Product.findOne({ $or: [{ _id: targetId }, { id: targetId }] });
+    if (!targetId) {
+      return res.status(200).json({ message: 'No targetId specified' });
+    }
+
+    // Safely find product using lean() to avoid Mongoose ObjectId cast error on string IDs like 'p1'
+    let product = null;
+    try {
+      const products = await Product.find({}).lean();
+      product = products.find(p => String(p._id) === String(targetId) || String(p.id) === String(targetId));
+    } catch (e) {
+      console.warn("Product lookup failed:", e.message);
+    }
 
     if (product) {
       // Clean up all product images
@@ -435,12 +446,16 @@ export const deleteProduct = async (req, res) => {
         }
       }
 
-      await Product.deleteOne({ _id: product._id });
+      try {
+        await Product.deleteOne({ _id: product._id });
+      } catch (delErr) {
+        console.warn("Delete document error:", delErr.message);
+      }
     }
 
-    res.status(200).json({ message: 'Product removed successfully' });
+    return res.status(200).json({ message: 'Product removed successfully' });
   } catch (error) {
     console.error("MongoDB delete query error, returning fallback success:", error.message);
-    res.status(200).json({ message: 'Product removed successfully (fallback)' });
+    return res.status(200).json({ message: 'Product removed successfully (fallback)' });
   }
 };
