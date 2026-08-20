@@ -106,18 +106,24 @@ export const getSlides = async (req, res) => {
     
     // Seed database ONLY ONCE if database has never been initialized
     if (!isDbSeededSlides) {
-      const count = await Slide.countDocuments();
-      if (count === 0) {
-        await Slide.insertMany(defaultSlides);
-        slides = await Slide.find({}).sort({ createdAt: -1 });
-      }
       isDbSeededSlides = true;
+      const count = await Slide.countDocuments();
+      const isEverSeeded = fs.existsSync(path.join(process.cwd(), '.db_slides_seeded'));
+      if (count === 0 && !isEverSeeded) {
+        try {
+          await Slide.insertMany(defaultSlides);
+          fs.writeFileSync(path.join(process.cwd(), '.db_slides_seeded'), 'true');
+          slides = await Slide.find({}).sort({ createdAt: -1 });
+        } catch (seedErr) {
+          console.warn("Error seeding default slides:", seedErr.message);
+        }
+      }
     }
     
     res.status(200).json(slides);
   } catch (error) {
-    console.error("MongoDB query error in getSlides, returning fallback defaultSlides:", error.message);
-    res.status(200).json(defaultSlides);
+    console.error("MongoDB query error in getSlides:", error.message);
+    res.status(200).json([]);
   }
 };
 
